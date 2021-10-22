@@ -9,6 +9,7 @@ algo="levenshtein"
 
 def suffixDict():
     """
+    List of common US address abbreviations to match address keywords. Key value pairs later converted into list
     Use common abbreviations -> USPS standardized abbreviation to replace common street suffixes
 
     Obtains list from https://www.usps.com/send/official-abbreviations.htm
@@ -89,6 +90,14 @@ def suffixDict():
 
 
 def main():
+    """
+    Main function that takes user input at the beginning of the program. 1 takes a single input (a pair of addresses) from a spreadsheet
+    while 2 parses pairs of addresses from a sheet until it reaches EOF.
+
+    All addresses need to have exactly 6 commas that delineate the 7 parts of an address - Street line 1, Street line 2, Street line 3, City, State,
+    Country and Pincode. If one of the fields is not available for the address then any amount of whitespace or consecutive commas will work fine
+    """
+
     while True:
         user_input = input("enter 1 for matching a single pair and 2 for parsing from spreadsheet")
         if user_input == "1":
@@ -104,6 +113,13 @@ def main():
 
 def strategy(row1, row2):
     
+        """
+        Entire logic for matching resides in this function
+
+        row1 and row2 are comma separated addresses sourced directly from spreadsheets. Here both addresses are fragmented according to the delimiter
+        that is specified as a comma
+        """
+
         addr1={}
         addr2={}
 
@@ -134,6 +150,11 @@ def strategy(row1, row2):
         addr2["pincode"] = string2[6].strip()
 
 
+        """
+        points is the weightage assigned to each component while generating the overall score. This has a 0 score for street because street
+        scoring is done separately
+        """
+
         points = {
             "street": 0,
             "city": 0.3,
@@ -143,10 +164,17 @@ def strategy(row1, row2):
         }
 
 
+        """
+        Removing all commas withing address fragments and converting all characters to lower case.
+        """
 
 
         street1 = addr1["street"].lower().replace(",", "")
         street2 = addr2["street"].lower().replace(",", "")
+
+        """
+        Variable declaration for a particular matching run
+        """
 
         master_keywords=[]
         numbers1 = []
@@ -158,21 +186,43 @@ def strategy(row1, row2):
         street_weight = 0.7
         non_street_weight = 1-street_weight
 
+
+        """
+        The matching process is divided into 2 parts. One for the street lines part of an address and one for the city state country and pincode.
+        Each part has a final weightage in the final score which is determined by street_weight and non_street_weight respectively
+        """
+
+
         if not addr1["pincode"] or not addr2["pincode"]:
-            street_weight = 0.9
-            non_street_weight = 0.1
-            # sum_of_points = points['city'] + points['state']+points['country']
+
+            """
+            If either of the addresses does not contain a pincode, then the pincode weightage is reduced to 0.2 and the remainder is 
+            equally divided over city state and country in the ratio of their existing weights.
+
+            i.e. 0.6 weight for pincode becomes 0.2 and 0.4 is divided among city, state and country in the ratio of 0.3:0.05:0.05. 
+            This changes the ratios for city to 0.3+(0.3/(0.3+0.05+0.05))*0.4 = 0.6.
+            Similarly the weights for state and country change too to make the final weights 0.6,0.1,0.1,0.2 for city state country and pincode respectively
+
+            This is needed because if an address doesnt contain a pincode then the score suffers a lot despite the addresses being similar since
+            pincode has a high weightage 
+            """
+
+            # street_weight = 0.9
+            # non_street_weight = 0.1
+            sum_of_points = points['city'] + points['state']+points['country']
             # print("HAHAHAHAHAHAH")
-            # revised_pincode_weight = 0.2
-            # diff = points['pincode'] - revised_pincode_weight
+            revised_pincode_weight = 0.2
+            diff = points['pincode'] - revised_pincode_weight
             
-            # points["pincode"] = revised_pincode_weight
-            # points['city'] = points["city"] + (points["city"]/sum_of_points)*diff
-            # points['state'] = points["state"] + (points['state']/sum_of_points)*diff
-            # points['country'] = points['country'] + (points['country']/sum_of_points)*diff
+            points["pincode"] = revised_pincode_weight
+            points['city'] = points["city"] + (points["city"]/sum_of_points)*diff
+            points['state'] = points["state"] + (points['state']/sum_of_points)*diff
+            points['country'] = points['country'] + (points['country']/sum_of_points)*diff
 
 
-
+        """
+        Converting the dictionary of key value pairs of address suffixes to a list master_keywords for easier parsing
+        """
 
         suffixDictitems = suffixDict()
         for key, value in suffixDictitems.items():
@@ -180,15 +230,25 @@ def strategy(row1, row2):
             master_keywords.append(value)
         
 
+
+        """
+        This fragment loops through each address and captures instances of numbers and keywords. 
+        
+        """
+
+
         array_string = ""
         number_found=False
-        for (index,i) in enumerate(address1):
-
+        for (index,i) in enumerate(street1):
+            """
+            Go through each character and if it is a number, then add it to the list of numbers. All consecutive occurences of a number
+            count as one number in the final list of numbers. numbers1 is the list of all numbers that occur in the address 1
+            """
 
             if i.isdigit():
                 number_found = True
                 array_string=array_string+i
-                if index == len(address1)-1:
+                if index == len(street1)-1:
                     numbers1.append(array_string)
             else:
                 if number_found:
@@ -196,26 +256,37 @@ def strategy(row1, row2):
                     array_string=""
                     number_found = False
 
+        """
+        Parse through the street line (all 3) and split all parts according to a comma delimiter. Then check if a word exists in the 
+        master keywords list. If it does, then add the word previous to the keyword into the keywords1 list for comparison (Riverwood drive
+        would have riverwood as the keyword for comparison)
+        """
 
         components = street1.split(" ")
         for count, word in enumerate(components):
-            for keyword in master_keywords:
-                if textdistance.levenshtein(word, keyword) <= 1:
-                    keywords1.append(components[count-1])
-                    break
+            if word in master_keywords:
+                keywords1.append(components[count-1])
+            # for keyword in master_keywords:
+            #     if textdistance.levenshtein(word, keyword) <= 1:
+            #         keywords1.append(components[count-1])
+            #         break
         
 
         print(numbers1)
 
+        """
+        Same process as Address1 for Address 2
+        """
+
         array_string = ""
         number_found=False
-        for (index,i) in enumerate(address2):
+        for (index,i) in enumerate(street2):
 
 
             if i.isdigit():
                 number_found = True
                 array_string=array_string+i
-                if index == len(address2)-1:
+                if index == len(street2)-1:
                     numbers2.append(array_string)
             else:
                 if number_found:
@@ -226,23 +297,37 @@ def strategy(row1, row2):
 
         components = street2.split(" ")
         for count, word in enumerate(components):
-            for keyword in master_keywords:
-                if textdistance.levenshtein(word, keyword) <= 1:
-                    keywords2.append(components[count-1])
-                    break
+            if word in master_keywords:
+                keywords2.append(components[count-1])
+            # for keyword in master_keywords:
+            #     if textdistance.levenshtein(word, keyword) <= 1:
+            #         keywords2.append(components[count-1])
+            #         break
         
 
         print(numbers2) 
 
 
-        # if one complete match
+        """
+        The loop below matches the list of numbers for both addresses.
+        """
+
+        
         street_score_number = 0
         similar_numbers = {}
         l=0
-        n=0
-        m=0
+        
+        #condition for checking if any addresses dont have numbers at all
         if not (len(numbers1) == 0 or len(numbers2) == 0):
+            """
+            Parse through the list of numbers in address 1. For each number in address 1, parse through each number in address 2. 
+            Calculate the levenshtein distance for each pair. If the distance is 0 then append the score as 1 and if distance is 1 then append 0.5 as score
+            Higher distances have no impact on final score and are considered not to be matches
 
+            Temp_numbers contains all the numbers and for each number in the first address, the final score is the maximum value of all the matches performed
+            with address 2 (max of temp_numbers)
+
+            """
             for i in numbers1:
                 temp_numbers = []
                 for j in numbers2:
@@ -253,15 +338,37 @@ def strategy(row1, row2):
                     elif (textdistance.levenshtein(i,j) == 1):
                         temp_numbers.append(0.5)    
 
+                """
+                only create new entry for a number if it doesnt exist already and there is some score present in temp_numbers after matching for 1 
+                number in address 1.
+
+                similar_numbers dictionary contains all the matched numbers according to the algo above
+                """
+                
+                
                 if not (i in similar_numbers.keys() and similar_numbers[i] == 1) and temp_numbers:
                     l+=1
                     similar_numbers[i] = max(temp_numbers)
 
             print(similar_numbers)
-            print("HEHE")
+
+            """
+            The score for street based on number matching is the mean of all the scores in the similar numbers dictionary
+            """
             print("street score number", np.array(list(similar_numbers.values())).mean())
             print(l)
             street_score_number= 0 if math.isnan(np.array(list(similar_numbers.values())).mean()) else np.array(list(similar_numbers.values())).mean()
+            
+            """
+            Street score based on number (street_score_number) is further modified based on the fraction of matches found compared to the numbers present
+            in the addresses. For example, if numbers1 = ["1234", "999", "000"], numbers2 = ["4543", 999"] then matching keywords will be ["999": 1]
+            Scoring for this will become 1 and despite there being a lot of differences in numbers, the numbers part of the street score will be very high.
+
+            This is normalized by creating a multiplier for the score by dividing the number of matches (given by l) by the maximum length of the 
+            numbers list for each address. In the above case, the multiplier will be 1/3 as l=1 and max length of numbers is 3. This ensures that the number
+            of matches need to include all numbers for a good match
+            """
+            
             street_score_number = street_score_number * (l/max(len(numbers1), len(numbers2)))
             print(street_score_number)
 
@@ -278,6 +385,10 @@ def strategy(row1, row2):
             print("numbers don't match")
 
 
+        """
+        Matching for keywords
+        """
+
         similar_keywords = {}
         street_score_keyword = 0
         l=0
@@ -286,7 +397,12 @@ def strategy(row1, row2):
         print("keywords 2: ", keywords2)
 
         if not (len(keywords2) == 0 or len(keywords1) == 0):
-
+            """
+            Matching for keywords follows a similar logic to numbers i.e. each keyword in address 1 is matched to each keyword in address 2 and the max
+            value of match is kept as the score for the word. The only difference is that here, scores are not discretized as 1 or 0.5 because keyword
+            lengths can be very high and the threshold for discrete scoring is hard to find. Instead, the score is a simple levenshtein distance normalized
+            and subtracted from 1 to get the match instead of distance out of 1
+            """
             for i in keywords1:
                 temp_keywords = []
                 for j in keywords2:
@@ -307,41 +423,94 @@ def strategy(row1, row2):
             #     print("match!!")
         else:
             street_score_keyword = 0
-            
-        if not numbers1 and not numbers2:
-            number_weight = 0
-        else:
-            number_weight = 0.3
-
-        if not keywords1 and not keywords2:
-            keyword_weight = 0
-        else:
-            keyword_weight = 0.2
         
+        
+
+        """
+        In addition to numbers and keyword matching, there is an additional matching score based on the jaccard index. This is a token based 
+        matching algorithm that considers words as tokens and nullifies the impact of interchanged words in a string. 
+
+        Jaccard matching is needed in the case of addresses where neither numbers or keywords are present. In such cases, number and keyword scores become
+        zero and overall match is poor despite the other parts of address being good matches.
+
+
+        """
+
                     
         street_score_token = 0
         token_weight = 0.5
 
         print(max(len(numbers1),len(numbers2)))
 
+        """
+        Calculate the normalized jaccard similarity between the street lines for both addresses
+        """
+
         street_score_token = 1-textdistance.jaccard.normalized_distance(addr1['street'], addr2['street'])
+        print("jaccard street",street_score_token)
+
+        """
+        The jaccard score also has a variable weight system to combat cases without numbers or keywords. 
+        
+        The weight for the jaccard score depends inversely on the length of the similar numbers and keywords found as a fraction of the total numbers and
+        keywords. This is needed because if the number of similar numbers is close to the number of numbers present in the addresses, then the jaccard score
+        doesn't add much value as much of the matching is already done in the number and keyword matching portion. However, if similar numbers and keywords
+        are not a significant fraction of the total numbers and keywords in the addresses, then the weight of the jaccard score increases proportionally
+
+        For example, if numbers1 = ["1234", "999", "000"], numbers2 = ["4543", 999"] then matching numbers = ["999"]. keywords1 = ["Raymond", "Whispy"], 
+        keywords2 = ["Virginia", "Raymond"] then matching keywords = ["Raymond"]
+
+        Hence the jaccard weight (token weight) = 1-0.9(1/max(3,2)+1/max(2,2))/2) = 1-0.9*(1/3+1/2)/2 = 1-0.9*0.8333/2 = 1-0.25 = 0.625
+
+        If the numbers2 was just ["4543"] then the jaccard score would increase to 1-0.9*(0+1/2)/2 = 0.775 since number matching was not conclusive as there
+        could be extra or missing numbers in one address despite being the same address
+        """
+
+        
+        token_weight = 1 - 0.9 * (((len(similar_numbers)/max(len(numbers1),len(numbers2),1)) + (len(similar_keywords)/max(len(keywords1),len(keywords2),1)))/2)
+
+        """
+        Number and keyword weights vary accordingly with token weight with greater weight for numbers
+        """
+        number_weight = 0
+        keyword_weight = 0
+
+
+        """
+        The weights assigned to numbers and keywords are variable. If numbers dont exist in either of the addresses then the weight for numbers is
+        removed. Same for keywords.
+        """
 
         if (not numbers1 and not numbers2) and (not keywords1 and not keywords2):
             token_weight = 1
+        elif not numbers1 and not numbers2:
+            number_weight = 0
+            keyword_weight = 1-token_weight
+        elif not keywords1 and not keywords2:
+            number_weight = 1-token_weight
+            keyword_weight = 0
         else:
-            token_weight = 1 - 0.6 * (((len(similar_numbers)/max(len(numbers1),len(numbers2),1)) + (len(similar_keywords)/max(len(keywords1),len(keywords2),1)))/2)
+            number_weight = 0.66*(1-token_weight)
+            keyword_weight = 0.34*(1-token_weight)
 
-        number_weight = 0.75*(1-token_weight)
-        keyword_weight = 0.25*(1-token_weight)    
+
+        
+  
         print(street_score_keyword)
 
         final_street_score = street_score_number*number_weight + street_score_keyword*keyword_weight + street_score_token*token_weight
-        print(street_score_keyword)
         print("final street score: ", final_street_score)
 
-        score = 0
         
 
+        """
+        For the second part of the match (the non street part including city, state, country and pincode) the matching is done purely by a 
+        simple levenshtein distance metric across the 2 addresses. the distance is normalized using the length of the strings and then subtracted
+        from 1 to get the match value
+        """
+        
+        score = 0
+        
         for key in addr1:
             if addr1[key] == "" or addr2[key] == "":
                 continue
@@ -365,6 +534,11 @@ def strategy(row1, row2):
 
 def single_test():
 
+    """
+    this method reads Samples.ods and takes the first row from Sheet 3 and calculates the match value for one pair of addresses and prints the 
+    output along with a jaccard score of the entire strings compared simultaneously
+    """
+
     df = pd.read_excel('../Samples.ods', sheet_name="Sheet3")
 
     address1 = df.Bad[0]
@@ -374,6 +548,12 @@ def single_test():
     print("final_score  ", final_score[0])
 
 def multi_test():
+
+    """
+    This method iterates over the values from the file Samples.ods in Sheet2 and calculates the match and jaccard scores for each pair and 
+    dumps the values into a file Scores.ods in Sheet1
+    """
+
     df = pd.read_excel('../Samples.ods', sheet_name="Sheet2")
 
     final_scores = []
@@ -392,8 +572,6 @@ def multi_test():
     df.to_excel("../Scores.ods", sheet_name="Sheet1")
 
     
-
-
 
 main()
 
