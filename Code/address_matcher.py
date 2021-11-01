@@ -107,7 +107,7 @@ def main():
             multi_test()
             break
         else:
-            print("Dekh ke enter kar bro")
+            print("Please check input and try again")
 
 
 
@@ -126,28 +126,46 @@ def strategy(row1, row2):
         address1 = row1
         address2 = row2
 
-        # address1 = " 21 22nd Ave Central St; Miami;FL;;33142"  
-        string1 = address1.split(",")
+        
+        string1 = address1.split("|")
+
+        # addr1["street"] = string1[0].strip()
+        # addr1["city"] = string1[1].strip()
+        # addr1["state"] = string1[2].strip()
+        # addr1["country"] = string1[3].strip()
+        # addr1["pincode"] = string1[4].strip()
+
+        try:
+            addr1["street"] = string1[0].strip()+" "+string1[1].strip()+" "+string1[2].strip()
+        except IndexError:
+            addr1["street"] = ""
+        
+        addr1["city"] = string1[3].strip() if len(string1) > 3 else ""
+        addr1["state"] = string1[4].strip() if len(string1) > 4 else ""
+        addr1["country"] = string1[5].strip() if len(string1) > 5 else ""
+        addr1["pincode"] = string1[6].strip() if len(string1) > 6 else ""
 
 
-        addr1["street"] = string1[0].strip()+" "+string1[1].strip()+" "+string1[2].strip()
-        addr1["city"] = string1[3].strip()
-        addr1["state"] = string1[4].strip()
-        addr1["country"] = string1[5].strip()
-        addr1["pincode"] = string1[6].strip()
 
 
+        
+        string2 = address2.split("|")
 
+        # addr2["street"] = string2[0].strip()
+        # addr2["city"] = string2[1].strip()
+        # addr2["state"] = string2[2].strip()
+        # addr2["country"] = string2[3].strip()
+        # addr2["pincode"] = string2[4].strip()
 
-        # address2 = "22nd Avenue, Northwest,  Street;DL;DL;IN;111005"
-        string2 = address2.split(",")
+        try:
+            addr2["street"] = string2[0].strip()+" "+string2[1].strip()+" "+string2[2].strip()
+        except IndexError:
+            addr2["street"] = ""
 
-
-        addr2["street"] = string2[0].strip()+" "+string2[1].strip()+" "+string2[2].strip()
-        addr2["city"] = string2[3].strip()
-        addr2["state"] = string2[4].strip()
-        addr2["country"] = string2[5].strip()
-        addr2["pincode"] = string2[6].strip()
+        addr2["city"] = string2[3].strip() if len(string2) > 3 else ""
+        addr2["state"] = string2[4].strip() if len(string2) > 4 else ""
+        addr2["country"] = string2[5].strip() if len(string2) > 5 else ""
+        addr2["pincode"] = string2[6].strip() if len(string2) > 6 else ""
 
 
         """
@@ -528,56 +546,71 @@ def strategy(row1, row2):
         print("total score: ", total_score)
 
         jaccard_score = (1-textdistance.jaccard.normalized_distance(address1, address2))*100
-
+        print("jaccard score",jaccard_score)
         return [total_score, jaccard_score]
 
 
 def single_test():
 
     """
-    this method reads Samples.ods and takes the first row from Sheet 3 and calculates the match value for one pair of addresses and prints the 
+    this method reads singletest.csv and takes the first row and calculates the match value for one pair of addresses and prints the 
     output along with a jaccard score of the entire strings compared simultaneously
     """
 
-    df = pd.read_excel('../Samples.ods', sheet_name="Sheet3")
+    df = pd.read_csv('../singletest.csv')
 
-    address1 = df.Bad[0]
-    address2 = df.Original[0]
+    address1 = df.Address1[0]
+    address2 = df.Address2[0]
 
     final_score = strategy(address1, address2)
-    print("final_score  ", final_score[0])
 
 def multi_test():
 
     """
-    This method iterates over the values from the file Samples.ods in Sheet2 and calculates the match and jaccard scores for each pair and 
-    dumps the values into a file Scores.ods in Sheet1
+    This method iterates over the values from the file Samples.csv and calculates the match and jaccard scores for each pair and 
+    dumps the values into a file Scores.xlsx in Sheet1
     """
 
-    df = pd.read_excel('../Samples.ods', sheet_name="Sheet2")
+    df = pd.read_csv('../Samples.csv')
 
     final_scores = []
     jaccard_scores = []
-    for row1, row2 in zip(df.Bad, df.Original):
+
+    # df["Pincode1"] = df["Pincode1"].apply(str)
+    # df["Pincode2"] = df["Pincode2"].apply(str)
+
+    # address_1 = df["Street1"]+","+df["City1"]+","+df["State1"]+","+df["Country1"]+","+df["Pincode1"]
+    # address_2 = df["Street2"]+","+df["City2"]+","+df["State2"]+","+df["Country2"]+","+df["Pincode2"]
+    
+    
+    for row1, row2 in zip(df.Address1, df.Address2):
+    # for row1, row2 in zip(address_1, address_2):    
         results = strategy(row1, row2)
         final_scores.append(results[0])
         jaccard_scores.append(results[1])
         
 
-    print(final_scores)
 
     df["scores"] = final_scores
     df["jaccard_scores"] = jaccard_scores
 
-    df.to_excel("../Scores.ods", sheet_name="Sheet1")
+    df.to_excel("../Scores.xlsx", sheet_name="Sheet1")
 
-    
+
 
 main()
 
 
+def input_matcher(address1, address2):
+    """
+    Method to test 2 addresses taken as user input
+    """
 
+    final_score = strategy(address1, address2)
+    print("Final score",final_score[0])
+    print("Jaccard score", final_score[1])
 
+input_matcher("71 Canning Street 5th Floor |||Kolkata 700001|Kol||Katta 700001", "21| Canning Street| 5th Floor|KolKata| West Bengal| India| 700001")
 
 
 
