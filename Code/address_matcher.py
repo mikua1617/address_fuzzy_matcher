@@ -228,7 +228,6 @@ def strategy(row1, row2):
             # street_weight = 0.9
             # non_street_weight = 0.1
             sum_of_points = points['city'] + points['state']+points['country']
-            # print("HAHAHAHAHAHAH")
             revised_pincode_weight = 0.2
             diff = points['pincode'] - revised_pincode_weight
             
@@ -290,7 +289,7 @@ def strategy(row1, row2):
             #         break
         
 
-        print(numbers1)
+        print("numbers in address 1: ",numbers1)
 
         """
         Same process as Address1 for Address 2
@@ -323,7 +322,7 @@ def strategy(row1, row2):
             #         break
         
 
-        print(numbers2) 
+        print("numbers in address 2: ",numbers2) 
 
 
         """
@@ -368,13 +367,11 @@ def strategy(row1, row2):
                     l+=1
                     similar_numbers[i] = max(temp_numbers)
 
-            print(similar_numbers)
+            print("similar numbers: ",similar_numbers)
 
             """
             The score for street based on number matching is the mean of all the scores in the similar numbers dictionary
             """
-            print("street score number", np.array(list(similar_numbers.values())).mean())
-            print(l)
             street_score_number= 0 if math.isnan(np.array(list(similar_numbers.values())).mean()) else np.array(list(similar_numbers.values())).mean()
             
             """
@@ -388,7 +385,7 @@ def strategy(row1, row2):
             """
             
             street_score_number = street_score_number * (l/max(len(numbers1), len(numbers2)))
-            print(street_score_number)
+            print("street score number part: ", street_score_number)
 
             # if len(similar_numbers) == min(len(numbers1), len(numbers2)):
             #     print("match!!")
@@ -411,8 +408,8 @@ def strategy(row1, row2):
         street_score_keyword = 0
         l=0
 
-        print("keywords 1: ", keywords1)
-        print("keywords 2: ", keywords2)
+        print("keywords in address 1: ", keywords1)
+        print("keywords in address 2: ", keywords2)
 
         if not (len(keywords2) == 0 or len(keywords1) == 0):
             """
@@ -458,14 +455,13 @@ def strategy(row1, row2):
         street_score_token = 0
         token_weight = 0.5
 
-        print(max(len(numbers1),len(numbers2)))
 
         """
         Calculate the normalized jaccard similarity between the street lines for both addresses
         """
 
         street_score_token = 1-textdistance.jaccard.normalized_distance(addr1['street'], addr2['street'])
-        print("jaccard street",street_score_token)
+        print("street score jaccard match part: ",street_score_token)
 
         """
         The jaccard score also has a variable weight system to combat cases without numbers or keywords. 
@@ -514,7 +510,7 @@ def strategy(row1, row2):
 
         
   
-        print(street_score_keyword)
+        print("street score keyword part: ",street_score_keyword)
 
         final_street_score = street_score_number*number_weight + street_score_keyword*keyword_weight + street_score_token*token_weight
         print("final street score: ", final_street_score)
@@ -547,6 +543,7 @@ def strategy(row1, row2):
 
         jaccard_score = (1-textdistance.jaccard.normalized_distance(address1, address2))*100
         print("jaccard score",jaccard_score)
+        print("-----------------------------------------------------------------")
         return [total_score, jaccard_score]
 
 
@@ -610,7 +607,6 @@ def input_matcher(address1, address2):
     print("Final score",final_score[0])
     print("Jaccard score", final_score[1])
 
-input_matcher("71 Canning Street 5th Floor |||Kolkata 700001|Kol||Katta 700001", "21| Canning Street| 5th Floor|KolKata| West Bengal| India| 700001")
 
 
 
